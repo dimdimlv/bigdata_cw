@@ -1,6 +1,8 @@
 import os
 import requests
 from pathlib import Path
+import gzip
+import shutil
 
 # Configuration for URLs and paths
 DATA_URLS = {
@@ -39,5 +41,18 @@ def download_all_datasets():
         download_data(url, dest_path)
 
 
+def extract_gz_files():
+    """
+    Extracts all .gz files in the raw data directory.
+    """
+    for file_path in RAW_DATA_DIR.glob("*.gz"):
+        extracted_path = file_path.with_suffix('')
+        with gzip.open(file_path, 'rb') as f_in:
+            with open(extracted_path, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+        print(f"Extracted: {extracted_path.name}")
+
+
 if __name__ == "__main__":
     download_all_datasets()
+    extract_gz_files()
