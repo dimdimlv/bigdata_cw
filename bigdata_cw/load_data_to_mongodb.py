@@ -55,7 +55,7 @@ def load_filtered_movies(file_path, collection, subset_size=2000, essential_colu
 
 def load_people_connected_to_movies(file_path, collection, movie_ids_to_keep, essential_columns=None):
     """
-    Load people data that are connected to the filtered movies.
+    Load people data that are connected to the filtered movies, ensuring no duplicates.
 
     Args:
         file_path (str or Path): Path to the TSV file.
@@ -63,7 +63,8 @@ def load_people_connected_to_movies(file_path, collection, movie_ids_to_keep, es
         movie_ids_to_keep (set): Set of tconst IDs of movies to keep.
         essential_columns (list): List of columns to keep in the dataset.
     """
-    # Load the people data into a pandas DataFrame with selected columns
+    # Track loaded people to avoid duplicates
+    loaded_people = set(people_collection.distinct("nconst"))
     records = []
     chunk_size = 10000
     for chunk in pd.read_csv(file_path, sep='\t', na_values='\\N', usecols=essential_columns, chunksize=chunk_size,
@@ -74,6 +75,14 @@ def load_people_connected_to_movies(file_path, collection, movie_ids_to_keep, es
                 lambda titles: any(tconst in movie_ids_to_keep for tconst in str(titles).split(',')))
 
         filtered_chunk = chunk[filter_people(chunk)]
+
+        # Only add people not already loaded
+        filtered_chunk = filtered_chunk[~filtered_chunk['nconst'].isin(loaded_people)]
+
+        # Track newly loaded people
+        loaded_people.update(filtered_chunk['nconst'].tolist())
+
+        # Add records to the list for insertion
         records.extend(filtered_chunk.to_dict(orient='records'))
 
     # Insert records into MongoDB if not empty
@@ -96,7 +105,7 @@ if __name__ == "__main__":
             return df['startYear'].fillna(0).astype(int) >= 2000
 
 
-        movie_ids_to_keep = load_filtered_movies(title_basics_path, movies_collection, subset_size=2000,
+        movie_ids_to_keep = load_filtered_movies(title_basics_path, movies_collection, subset_size=5000,
                                                  essential_columns=essential_columns_movies,
                                                  filter_condition=filter_condition)
 
